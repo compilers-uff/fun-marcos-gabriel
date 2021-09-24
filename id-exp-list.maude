@@ -1,0 +1,36 @@
+sload pi
+sload basic-lex
+
+---| Custom linked list module
+fmod IDEXPLIST is
+      inc QID .
+      inc RAT .
+      inc FLOAT .
+      inc STRING .
+      inc BOOL .
+      sorts Expr Idn Val .
+      sorts List .
+      subsort Idn Val < Expr < List .
+      op idn : Qid -> Idn .
+      op nil : -> List [ctor] .
+
+	  ---| Custom operator to separate arguments
+      op _¸_ : List List -> List [ctor assoc id: nil] .
+
+	  ---| Defines input and output of getters
+      op getHeadId : List -> Idn .
+      op getHeadExpr : List -> Expr .
+      op getTailExpr : List -> List .
+      op getTailId : List -> List .
+
+	  ---| Defines arguments and return type of the following functions
+      var listTail : List .
+      var headId : Idn .
+      var headExpr : Expr .
+
+	  ---| Getter implementation
+      eq getHeadId(headId ¸ listTail) = headId .
+      eq getHeadExpr(headExpr ¸ listTail) = headExpr .
+      eq getTailExpr(headExpr ¸ listTail) = listTail .
+      eq getTailId(headId ¸ listTail) = listTail .
+endfm
