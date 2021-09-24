@@ -38,6 +38,7 @@ op _(_) : Idn List -> Expr [prec 10] .
 ```
 ---| Argument list (used to define the type)
 var args : List .
+
 ---| Transforms list on formals, then compiles the remaing ids
 op formalsList : List -> Formals .
 eq formalsList(args) = 	if getTailId(args) == nil
@@ -46,6 +47,7 @@ eq formalsList(args) = 	if getTailId(args) == nil
 				---| Compiles head and calls recursively for the tail
                        		else compileIdn(getHeadId(args)) formalsList(getTailId(args))
                        	fi .
+
 ---| Transforms list on actuals, then compiles the remaingexpressions
 op actualsList : List -> Actuals .
 eq actualsList(args) =  if getTailExpr(args) == nil
@@ -54,12 +56,16 @@ eq actualsList(args) =  if getTailExpr(args) == nil
 				---| Calls recursively for the tail and compiles head
                            	else actualsList(getTailExpr(args) compileExpr(getHeadExpr(args))
                        	fi .
+
 ---| Accepts argument list on declaration
 eq compileExpr(fun I1 (args) = E) = compileDec(fun I1 (args) = E) .
+
 ---| Accepts argument list on call
 eq compileExpr(I(args)) = recapp(compileIdn(I), actualsList(args)) .
+
 ---| Accepts argument list on declaration compilation
 eq compileExpr((fun I1 (args) = E1, E2)) = let(compileDec(fun I1 (args) = E1), compileExpr(E2)) .
+
 ---| Accepts argument list on call compilation
 op compileDec : Expr -> Dec .
 eq compileDec(fun I1 (args) = E) = rec(compileIdn(I1), lambda(formalsList(args), compileExpr(E))) .
