@@ -1,11 +1,16 @@
 sload pi
 sload basic-lex
 
+---| Load id-exp-list.maude
+sload id-exp-list
+
+
 fmod FUN-LEX is 
      inc LEXICAL .
      inc BASIC-LEX .
 
-     eq keywords = ('fun '`( '`) '= '`, '~ '+ '- '* '/ '>= '> '<= '< '== 'or 'and 'if 'then 'else) .
+	---| Add ¸ keyword to separate arguments on argument list
+     eq keywords = ('fun '`( '`) '= '`, '~ '+ '- '* '/ '>= '> '<= '< '== 'or 'and 'if 'then 'else '¸) .
      eq ignore = nil .
 
      var Q : Qid .
@@ -36,8 +41,13 @@ fmod FUN-GRM is
      inc FLOAT .
      inc STRING .
      inc BOOL .
-     sorts Expr Idn Val .
-     subsort Idn Val < Expr .  
+
+	---| Include IDEXPLIST from id-exp-list
+     inc IDEXPLIST .
+    
+	---| Define Expr as subtype of List
+	 subsort Idn Val < Expr < List .
+
      op idn : Qid -> Idn .
      op rat : Rat -> Val .
      op flo : Float -> Val .
@@ -46,9 +56,14 @@ fmod FUN-GRM is
      ops _+_ _*_ _-_ _/_ _==_ _<_ _<=_ _>_ _>=_ _or_ _and_ : Expr Expr -> Expr [gather(E e) prec 20] .
      op ~_ : Expr -> Expr .
      op if_then_else_ : Expr Expr Expr -> Expr [prec 40] .
-     op fun_(_) =_ : Idn Idn Expr -> Expr [prec 50] .
-     op _(_) : Idn Expr -> Expr [prec 10] . 
-     op _,_ : Expr Expr -> Expr [prec 60 assoc] .
+
+	 ---| Adding List to accepted function definition arguments
+     op fun_(_) =_ : Idn List Expr -> Expr [prec 50] .
+     
+	 ---| Adding List to accepted function call arguments
+	 op _(_) : Idn List -> Expr [prec 10] .
+     
+	 op _,_ : Expr Expr -> Expr [prec 60 assoc] .
  endfm 
 
 fmod FUN-PARSER is 
@@ -70,6 +85,13 @@ fmod FUN-TRAN2 is
      inc ID-IR .
      inc REC-IR .
 
+	---| Include IDEXPLISP from id-exp-list
+     inc IDEXPLIST .
+    
+	---| Include FORMALS and ACTUALS from pi
+	 inc FORMALS .
+     inc ACTUALS .
+
      op compileIdn : Idn -> Id .
      var Q : Qid .
      eq compileIdn(idn(Q)) = id(Q) .
@@ -78,7 +100,7 @@ fmod FUN-TRAN2 is
 
      var R : Rat . var F : Float . var S : String . var B : Bool .
      vars E E1 E2 E3 : Expr .
-     var I I1 I2 : Idn . 
+     var I I1 I2 : Idn .
 
      eq compileExpr(rat(R)) = exp(val(R)) .
      eq compileExpr(flo(F)) = exp(val(F)) .
@@ -101,17 +123,43 @@ fmod FUN-TRAN2 is
 
      eq compileExpr(if E1 then E2 else E3) = 
         ite(compileExpr(E1), compileExpr(E2), compileExpr(E3)) .
+	
+	---| Argument list (used to define the type)
+     var args : List .
 
-     eq compileExpr(fun I1 (I2) = E) = compileDec(fun I1 (I2) = E) .
+	---| Transforms list on formals, then compiles the remaing ids
+     op formalsList : List -> Formals .
+     eq formalsList(args) = if getTailId(args) == nil
+	 							---| Compiles head and finishes recursion
+                            	then compileIdn(getHeadId(args))
+								---| Compiles head and calls recursively for the tail
+                            	else compileIdn(getHeadId(args)) formalsList(getTailId(args))
+                            fi .
 
-     eq compileExpr(I(E)) = recapp(compileIdn(I), compileExpr(E)) .
+	---| Transforms list on actuals, then compiles the remaing expressions
+     op actualsList : List -> Actuals .
+     eq actualsList(args) = if getTailExpr(args) == nil 
+	 							---| Compiles head and finishes recursion
+                                then compileExpr(getHeadExpr(args))
+								---| Calls recursively for the tail and compiles head
+                                else actualsList(getTailExpr(args)) compileExpr(getHeadExpr(args))
+                            fi .
 
-     eq compileExpr((fun I1 (I2) = E1, E2)) = 
-        let(compileDec(fun I1 (I2) = E1), compileExpr(E2)) .
+	---| Accepts argument list on declaration
+     eq compileExpr(fun I1 (args) = E) = compileDec(fun I1 (args) = E) .
 
+	---| Accepts argument list on call
+     eq compileExpr(I(args)) = recapp(compileIdn(I), actualsList(args)) .
+
+	---| Accepts argument list on declaration compilation
+     eq compileExpr((fun I1 (args) = E1, E2)) = 
+        let(compileDec(fun I1 (args) = E1), compileExpr(E2)) .
+
+	---| Accepts argument list on call compilation
      op compileDec : Expr -> Dec .
-     eq compileDec(fun I1 (I2) = E) = 
-        rec(compileIdn(I1), lambda(compileIdn(I2), compileExpr(E))) . 
+     eq compileDec(fun I1 (args) = E) = 
+        rec(compileIdn(I1), lambda(formalsList(args), compileExpr(E))) . 
+
 endfm
 
 fmod FUN-RUN-TIME is 
